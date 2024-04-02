@@ -1,0 +1,24 @@
+[package]
+name = "server-events"
+version = "0.1.0"
+edition = "2021"
+authors.workspace = true
+repository.workspace = true
+description = "A Rust client with a GUI and even a taskbar icon that can be used to keep track of events on remote server(s)."
+
+
+[workspace.package]
+authors = ["Lut99"]
+repository = "https://github.com/Lut99/server-events-rs"
+
+
+[dependencies]
+eframe = "0.27"
+notify-rust = "4"
+tray-icon = "0.13"
+
+
+[workspace]
+members = [
+    "spec"
+]

@@ -1,0 +1,11 @@
+[package]
+name = "server-events-spec"
+version = "0.1.0"
+edition = "2021"
+authors.workspace = true
+repository.workspace = true
+description = "A Rust server library that can be used to generate events in a way the client understands."
+
+
+[dependencies]
+serde = "1.0"
