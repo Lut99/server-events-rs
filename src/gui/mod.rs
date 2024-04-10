@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:13:02
 //  Last edited:
-//    02 Apr 2024, 15:14:14
+//    10 Apr 2024, 11:15:59
 //  Auto updated?
 //    Yes
 //
@@ -15,4 +15,6 @@
 //
 
 // Declare submodules
+pub mod event_loop;
+pub mod tray_icon;
 pub mod window;
