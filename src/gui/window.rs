@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:14:28
 //  Last edited:
-//    10 Apr 2024, 10:51:46
+//    10 Apr 2024, 12:28:16
 //  Auto updated?
 //    Yes
 //
@@ -15,6 +15,7 @@
 use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 
+use log::info;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
 
@@ -69,8 +70,10 @@ impl Window {
     /// # Errors
     /// This function errors if it fails to build a new [`winit::Window`](winit::window::Window).
     pub fn new(event_loop: &EventLoop<()>, title: impl AsRef<str>) -> Result<Self, Error> {
-        // Build the eframe window
         let title: &str = title.as_ref();
+        info!("Initializing Window '{title}'...");
+
+        // Build the eframe window
         let window: winit::window::Window = match WindowBuilder::new().with_title(title).build(&event_loop) {
             Ok(win) => win,
             Err(err) => return Err(Error::WindowCreate { title: title.into(), err }),

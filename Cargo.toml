@@ -14,13 +14,16 @@ repository = "https://github.com/Lut99/server-events-rs"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
+dirs = "5.0"
 eframe = "0.27"
 error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
+gtk = "0.18"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 image = "0.25"
+lazy_static = "1.4"
 log = "0.4"
 notify-rust = "4"
-tray-icon = "0.13"
+tray-icon = { version = "0.13", default-features = false }
 winit = "0.29"
 
 
