@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:08:52
 //  Last edited:
-//    10 Apr 2024, 14:12:46
+//    10 Apr 2024, 14:54:04
 //  Auto updated?
 //    Yes
 //
@@ -165,16 +165,13 @@ fn main() {
                 }
             },
 
-
             // Window events
             // Event::Window() => {},
 
-
             // Tray events
             Event::UserEvent(event) => {
-                match event.
-            }
-
+                debug!("Got event from '{:?}'", event);
+            },
 
             // Rest we ignore, for now
             _ => return,
