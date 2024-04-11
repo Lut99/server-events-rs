@@ -4,7 +4,7 @@
 //  Created:
 //    10 Apr 2024, 11:15:30
 //  Last edited:
-//    11 Apr 2024, 14:36:54
+//    11 Apr 2024, 17:29:03
 //  Auto updated?
 //    Yes
 //
@@ -16,14 +16,28 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
 use std::{error, fs};
 
+use egui_winit::winit;
+use enum_debug::EnumDebug;
 use error_trace::trace;
 use image::{DynamicImage, GenericImageView, ImageFormat};
 use log::{debug, info, warn};
-use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuId, MenuItem};
+use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
 use winit::event_loop::EventLoopProxy;
 
 use crate::state::AppState;
+
+
+/***** CONSTANTS *****/
+/// The raw byte string that is the icon image.
+const ICON: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icon/example-256x256.png"));
+
+/// The number of check update commands that can be buffered.
+#[cfg(target_os = "linux")]
+const CHECK_BUFFER_LEN: usize = 32;
+
+
+
 
 
 /***** ERRORS *****/
@@ -37,7 +51,7 @@ pub enum Error {
     /// Failed to create a tray icon's [`Icon`].
     IconCreate { len: usize, dims: (u32, u32), err: tray_icon::BadIcon },
     /// Failed to create a menu item.
-    MenuCreateItem { item: usize, err: tray_icon::menu::Error },
+    MenuAppendItem { item: TrayIconMenuItem, err: tray_icon::menu::Error },
     /// Failed to create the [`tray_icon::TrayIcon`] itself.
     TrayIconCreate { err: tray_icon::Error },
     /// Failed to make the tray icon visible.
@@ -51,7 +65,7 @@ impl Display for Error {
             CacheDirCreate { path, .. } => write!(f, "Failed to create cache directory '{}'", path.display()),
             ImageConvert { .. } => write!(f, "Failed to convert icon image to raw format"),
             IconCreate { len, dims, .. } => write!(f, "Failed to create icon of {} bytes ({}x{} pixels)", len, dims.0, dims.1),
-            MenuCreateItem { item, .. } => write!(f, "Failed to create menu item {item}"),
+            MenuAppendItem { item, .. } => write!(f, "Failed to append menu item {item} to menu"),
             TrayIconCreate { .. } => write!(f, "Failed to create backend tray icon"),
             TrayIconVisible { .. } => write!(f, "Failed make tray icon visible"),
         }
@@ -65,7 +79,7 @@ impl error::Error for Error {
             CacheDirCreate { err, .. } => Some(err),
             ImageConvert { err } => Some(err),
             IconCreate { err, .. } => Some(err),
-            MenuCreateItem { err, .. } => Some(err),
+            MenuAppendItem { err, .. } => Some(err),
             TrayIconCreate { err } => Some(err),
             TrayIconVisible { err } => Some(err),
         }
@@ -99,9 +113,58 @@ impl error::Error for ConvertError {
 
 
 
-/***** CONSTANTS *****/
-/// The raw byte string that is the icon image.
-const ICON: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icon/example-256x256.png"));
+/***** AUXILLARY *****/
+/// Defines the possible menu items in the [`TrayIcon`].
+#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
+pub enum TrayIconMenuItem {
+    /// It's the first item, `Open`.
+    Open,
+    /// It's the second item, `Exit`.
+    Exit,
+}
+impl Display for TrayIconMenuItem {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        match self {
+            Self::Open => write!(f, "Open"),
+            Self::Exit => write!(f, "Exit"),
+        }
+    }
+}
+
+
+
+/// A handle for a TrayIcon that either visits it on another thread, or just wraps itself.
+///
+/// This version wraps itself.
+#[cfg(not(target_os = "linux"))]
+pub struct TrayIconHandle(TrayIcon);
+#[cfg(not(target_os = "linux"))]
+impl TrayIconHandle {
+    /// Constructor for the TrayIconHandle that builds it from a direct TrayIcon.
+    ///
+    /// # Arguments
+    /// - `tray_icon`: The [`TrayIcon`] to build ourselves from.
+    ///
+    /// # Returns
+    /// A new TrayIconHandle that can do stuff.
+    #[inline]
+    pub fn new(tray_icon: TrayIcon) -> Self { Self(tray_icon) }
+
+    /// Returns the [`MenuId`] of one of the given menu items.
+    ///
+    /// # Arguments
+    /// - `item`: The item to get the ID of.
+    ///
+    /// # Returns
+    /// Returns a [`MenuId`] that represents how to recognize this specific item.
+    pub const fn get_id_of_item(&self, item: TrayIconMenuItem) -> &MenuId {
+        match item {
+            TrayIconMenuItem::Open => &self.0.ids[0],
+            TrayIconMenuItem::Exit => &self.0.ids[1],
+        }
+    }
+}
 
 
 
@@ -111,6 +174,8 @@ const ICON: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/
 pub struct TrayIcon {
     /// The tray icon we wrap.
     _icon: tray_icon::TrayIcon,
+    /// The IDs for all of the menu items.
+    ids:   [MenuId; 2],
 }
 impl TrayIcon {
     /// Helper function that can convert image formats to raw image data.
@@ -157,7 +222,7 @@ impl TrayIcon {
     ///
     /// # Errors
     /// This function errors if we failed to create the icon used for the tray icon, or if we failed to create the backend [`tray_icon::TrayIcon`] itself.
-    pub fn new(state: &AppState, eloop: EventLoopProxy<MenuEvent>) -> Result<Self, Error> {
+    pub fn new(state: AppState, eloop: EventLoopProxy<MenuEvent>) -> Result<Self, Error> {
         let config_dir: &Path = state.config_dir();
         info!("Initializing TrayIcon...");
 
@@ -188,23 +253,15 @@ impl TrayIcon {
 
         // Build the menu
         debug!("Building tray icon menu...");
+
+        // Build the items
+        let open: MenuItem = MenuItem::new("&Open", true, None);
+        let exit: MenuItem = MenuItem::new("&Exit", true, None);
+
+        // Add them all into a menu
         let menu: Menu = Menu::new();
-        if let Err(err) = menu.append(&MenuItem::new("&Open", true, None)) {
-            return Err(Error::MenuCreateItem { item: 3, err });
-        };
-        state.access(|state| match menu.append(&CheckMenuItem::new("&Mute", true, state.muted.is_muted(), None)) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(Error::MenuCreateItem { item: 4, err }),
-        })?;
-        if let Err(err) = menu.append(&MenuItem::new("Mute &until exit...", true, None)) {
-            return Err(Error::MenuCreateItem { item: 5, err });
-        };
-        if let Err(err) = menu.append(&MenuItem::new("Mute &for...", true, None)) {
-            return Err(Error::MenuCreateItem { item: 6, err });
-        };
-        if let Err(err) = menu.append(&MenuItem::new("&Exit", true, None)) {
-            return Err(Error::MenuCreateItem { item: 7, err });
-        };
+        menu.append(&open).map_err(|err| Error::MenuAppendItem { item: TrayIconMenuItem::Open, err })?;
+        menu.append(&exit).map_err(|err| Error::MenuAppendItem { item: TrayIconMenuItem::Exit, err })?;
 
         // Build the tray icon
         debug!("Building backend TrayIcon...");
@@ -213,7 +270,6 @@ impl TrayIcon {
             .with_icon(icon)
             .with_tooltip("server-events client")
             .with_menu(Box::new(menu))
-            .with_menu_on_left_click(true)
             .with_temp_dir_path(config_dir)
             .build()
         {
@@ -236,6 +292,6 @@ impl TrayIcon {
         }
 
         // Done, create ourselves
-        Ok(Self { _icon: icon })
+        Ok(Self { _icon: icon, ids: [open.into_id(), exit.into_id()] })
     }
 }

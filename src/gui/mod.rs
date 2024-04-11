@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:13:02
 //  Last edited:
-//    11 Apr 2024, 13:54:19
+//    11 Apr 2024, 17:58:19
 //  Auto updated?
 //    Yes
 //
@@ -16,5 +16,6 @@
 
 // Declare submodules
 pub mod app;
+pub mod gui;
 pub mod tray_icon;
 pub mod window;

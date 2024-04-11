@@ -16,10 +16,9 @@ repository = "https://github.com/Lut99/server-events-rs"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 dirs = "5.0"
-eframe = "0.27"
+egui-winit = "0.27"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
-gtk = "0.18"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 image = "0.25"
 lazy_static = "1.4"
@@ -29,7 +28,10 @@ parking_lot = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 serializable = { git = "https://github.com/Lut99/serializable-rs", features = ["serde-toml"] }
 tray-icon = { version = "0.13", default-features = false }
-winit = "0.29"
+
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
 
 
 [workspace]

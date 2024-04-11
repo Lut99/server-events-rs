@@ -4,7 +4,7 @@
 //  Created:
 //    11 Apr 2024, 13:14:35
 //  Last edited:
-//    11 Apr 2024, 14:42:17
+//    11 Apr 2024, 17:13:35
 //  Auto updated?
 //    Yes
 //
@@ -173,17 +173,9 @@ impl AppState {
     /// # Errors
     /// This function errors if the given `access_fn` errors.
     #[inline]
-    pub fn access<E>(&self, access_fn: impl FnOnce(&MutableAppState) -> Result<(), E>) -> Result<(), E> {
-        // Provide access in read-only mode
-        {
-            let lock: RwLockReadGuard<MutableAppState> = self.mut_state.read();
-            if let Err(err) = access_fn(&*lock) {
-                return Err(err);
-            }
-        }
-
-        // Done
-        Ok(())
+    pub fn access<R>(&self, access_fn: impl FnOnce(&MutableAppState) -> R) -> R {
+        let lock: RwLockReadGuard<MutableAppState> = self.mut_state.read();
+        access_fn(&*lock)
     }
 
     /// Provides write access to the mutable part of the state.
@@ -196,18 +188,21 @@ impl AppState {
     /// # Errors
     /// This function errors if the given `access_fn` errors, or then if writing the state back errors.
     #[inline]
-    pub fn access_mut<E>(&self, access_fn: impl FnOnce(&mut MutableAppState) -> Result<(), E>) -> Result<Result<(), Error>, E> {
-        // Provide access in write mode
-        {
+    pub fn access_mut<R, E>(&self, access_fn: impl FnOnce(&mut MutableAppState) -> Result<R, E>) -> Result<Result<R, Error>, E> {
+        // Provide mutable access, with its own, unique lock
+        let res: R = {
             let mut lock: RwLockWriteGuard<MutableAppState> = self.mut_state.write();
-            if let Err(err) = access_fn(&mut *lock) {
-                return Err(err);
-            }
-        }
+            access_fn(&mut *lock)?
+        };
 
         // Now sync the mutable app state back
         let config_path: PathBuf = self.config_dir.join("server_events.toml");
-        Ok(self.mut_state.read().sync(&config_path))
+        if let Err(err) = self.mut_state.read().sync(&config_path) {
+            return Ok(Err(err));
+        }
+
+        // OK, return the result
+        Ok(Ok(res))
     }
 }
 
@@ -244,6 +239,7 @@ impl MutableAppState {
         }
 
         // Write it to that path
+        debug!("Syncing MutableAppState back to '{}'...", config_path.display());
         match config.to_path_pretty(config_path) {
             Ok(_) => {
                 info!("Synced MutableAppState back to '{}'", config_path.display());
@@ -270,7 +266,7 @@ impl MutableAppState {
         // Attempt to load the config file
         let config_path: PathBuf = config_dir.join("server_events.toml");
         debug!("Loading config file from '{}'...", config_path.display());
-        let config: ConfigFile = match ConfigFile::from_path(&config_path) {
+        let mut config: ConfigFile = match ConfigFile::from_path(&config_path) {
             Ok(config) => config,
             Err(serializable::Error::FileOpen { path, err }) => {
                 if err.kind() == ErrorKind::NotFound {
@@ -283,6 +279,11 @@ impl MutableAppState {
             },
             Err(err) => return Err(Error::ConfigLoad { path: config_path, err }),
         };
+
+        // Resolve the muted state in case it was supposed to last until the last exit
+        if matches!(config.muted, MuteState::NextBoot) {
+            config.muted = MuteState::Unmuted;
+        }
 
         // OK, build self
         Ok(Self { muted: config.muted })
