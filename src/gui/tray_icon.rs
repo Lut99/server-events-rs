@@ -4,7 +4,7 @@
 //  Created:
 //    10 Apr 2024, 11:15:30
 //  Last edited:
-//    10 Apr 2024, 13:57:32
+//    11 Apr 2024, 14:36:54
 //  Auto updated?
 //    Yes
 //
@@ -12,22 +12,26 @@
 //!   Defines an abstraction over backend tray icon providers.
 //
 
-use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::{error, fs};
 
 use error_trace::trace;
 use image::{DynamicImage, GenericImageView, ImageFormat};
 use log::{debug, info, warn};
-use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem};
+use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuId, MenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
 use winit::event_loop::EventLoopProxy;
+
+use crate::state::AppState;
 
 
 /***** ERRORS *****/
 /// Defines errors originating from the [`TrayIcon`].
 #[derive(Debug)]
 pub enum Error {
+    /// Failed to create the cache directory for the tray icon.
+    CacheDirCreate { path: PathBuf, err: std::io::Error },
     /// Failed to convert the icon image from whatever it was embedded as to raw image data.
     ImageConvert { err: ConvertError },
     /// Failed to create a tray icon's [`Icon`].
@@ -44,6 +48,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
+            CacheDirCreate { path, .. } => write!(f, "Failed to create cache directory '{}'", path.display()),
             ImageConvert { .. } => write!(f, "Failed to convert icon image to raw format"),
             IconCreate { len, dims, .. } => write!(f, "Failed to create icon of {} bytes ({}x{} pixels)", len, dims.0, dims.1),
             MenuCreateItem { item, .. } => write!(f, "Failed to create menu item {item}"),
@@ -57,6 +62,7 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         use Error::*;
         match self {
+            CacheDirCreate { err, .. } => Some(err),
             ImageConvert { err } => Some(err),
             IconCreate { err, .. } => Some(err),
             MenuCreateItem { err, .. } => Some(err),
@@ -104,7 +110,7 @@ const ICON: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/
 /***** LIBRARY *****/
 pub struct TrayIcon {
     /// The tray icon we wrap.
-    icon: tray_icon::TrayIcon,
+    _icon: tray_icon::TrayIcon,
 }
 impl TrayIcon {
     /// Helper function that can convert image formats to raw image data.
@@ -143,7 +149,7 @@ impl TrayIcon {
     /// Constructor for the TrayIcon.
     ///
     /// # Arguments
-    /// - `config_dir`: The root config directory that the icon will be written to.
+    /// - `state`: The [`AppState`] shared with the window to communicate with each other.
     /// - `eloop`: An [`EventLoopProxy`] that acts as a handle to the main event proxy.
     ///
     /// # Returns
@@ -151,9 +157,19 @@ impl TrayIcon {
     ///
     /// # Errors
     /// This function errors if we failed to create the icon used for the tray icon, or if we failed to create the backend [`tray_icon::TrayIcon`] itself.
-    pub fn new(config_dir: impl AsRef<Path>, eloop: EventLoopProxy<MenuEvent>) -> Result<Self, Error> {
-        let config_dir: &Path = config_dir.as_ref();
+    pub fn new(state: &AppState, eloop: EventLoopProxy<MenuEvent>) -> Result<Self, Error> {
+        let config_dir: &Path = state.config_dir();
         info!("Initializing TrayIcon...");
+
+        // Assert the cache directory exists
+        if !state.cache_dir().exists() {
+            debug!("Cache directory '{}' does not exist, creating...", state.cache_dir().display());
+            if let Err(err) = fs::create_dir_all(&state.cache_dir()) {
+                return Err(Error::CacheDirCreate { path: state.cache_dir().into(), err });
+            }
+        } else {
+            debug!("Cache directory '{}' exists", state.config_dir().display());
+        }
 
         // Decompress the internal image
         debug!("Loading tray icon icon...");
@@ -173,8 +189,21 @@ impl TrayIcon {
         // Build the menu
         debug!("Building tray icon menu...");
         let menu: Menu = Menu::new();
-        if let Err(err) = menu.append(&MenuItem::new("Exit", true, None)) {
-            return Err(Error::MenuCreateItem { item: 0, err });
+        if let Err(err) = menu.append(&MenuItem::new("&Open", true, None)) {
+            return Err(Error::MenuCreateItem { item: 3, err });
+        };
+        state.access(|state| match menu.append(&CheckMenuItem::new("&Mute", true, state.muted.is_muted(), None)) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(Error::MenuCreateItem { item: 4, err }),
+        })?;
+        if let Err(err) = menu.append(&MenuItem::new("Mute &until exit...", true, None)) {
+            return Err(Error::MenuCreateItem { item: 5, err });
+        };
+        if let Err(err) = menu.append(&MenuItem::new("Mute &for...", true, None)) {
+            return Err(Error::MenuCreateItem { item: 6, err });
+        };
+        if let Err(err) = menu.append(&MenuItem::new("&Exit", true, None)) {
+            return Err(Error::MenuCreateItem { item: 7, err });
         };
 
         // Build the tray icon
@@ -192,8 +221,8 @@ impl TrayIcon {
             Err(err) => return Err(Error::TrayIconCreate { err }),
         };
 
-        // Register the handler in the event loop
-        debug!("Registering event handler...");
+        // Register the handlers in the event loop
+        debug!("Registering event handler for the menu...");
         MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
             let id: MenuId = event.id.clone();
             if let Err(err) = eloop.send_event(event) {
@@ -202,12 +231,11 @@ impl TrayIcon {
         }));
 
         // Set some final options
-        icon.set_show_menu_on_left_click(true);
         if let Err(err) = icon.set_visible(true) {
             return Err(Error::TrayIconVisible { err });
         }
 
         // Done, create ourselves
-        Ok(Self { icon })
+        Ok(Self { _icon: icon })
     }
 }

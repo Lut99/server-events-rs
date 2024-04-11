@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:14:28
 //  Last edited:
-//    10 Apr 2024, 12:28:16
+//    11 Apr 2024, 13:26:33
 //  Auto updated?
 //    Yes
 //
@@ -55,7 +55,7 @@ impl error::Error for Error {
 #[derive(Debug)]
 pub struct Window {
     /// The wrapper [`eframe::Window`] we actually render on.
-    window: winit::window::Window,
+    _window: winit::window::Window,
 }
 impl Window {
     /// Constructor for the Window.
@@ -80,6 +80,6 @@ impl Window {
         };
 
         // Done, build self
-        Ok(Self { window })
+        Ok(Self { _window: window })
     }
 }

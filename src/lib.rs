@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:09:15
 //  Last edited:
-//    02 Apr 2024, 15:12:40
+//    11 Apr 2024, 13:18:00
 //  Auto updated?
 //    Yes
 //
@@ -18,3 +18,4 @@
 
 // Declare modules
 pub mod gui;
+pub mod state;

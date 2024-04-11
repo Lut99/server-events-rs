@@ -842,6 +842,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-targets 0.52.4",
 ]
@@ -1359,6 +1360,23 @@ name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
+
+[[package]]
+name = "enum-debug"
+version = "0.2.0"
+source = "git+https://github.com/Lut99/enum-debug#37066f5de14d541fb5603267ab1af98593213e4b"
+dependencies = [
+ "enum-debug-derive",
+]
+
+[[package]]
+name = "enum-debug-derive"
+version = "0.2.0"
+source = "git+https://github.com/Lut99/enum-debug#37066f5de14d541fb5603267ab1af98593213e4b"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "enumflags2"
@@ -3524,12 +3542,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "serializable"
+version = "0.1.0"
+source = "git+https://github.com/Lut99/serializable-rs#3db4e839f9d58f5587fe5b8a041d664fc3d0dca7"
+dependencies = [
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "server-events"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "dirs",
  "eframe",
+ "enum-debug",
  "error-trace",
  "gtk",
  "humanlog",
@@ -3537,6 +3566,9 @@ dependencies = [
  "lazy_static",
  "log",
  "notify-rust",
+ "parking_lot",
+ "serde",
+ "serializable",
  "tray-icon",
  "winit",
 ]
