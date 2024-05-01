@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:08:52
 //  Last edited:
-//    11 Apr 2024, 14:26:27
+//    01 May 2024, 19:51:49
 //  Auto updated?
 //    Yes
 //
@@ -20,7 +20,7 @@ use error_trace::ErrorTrace as _;
 use humanlog::{DebugMode, HumanLogger};
 use lazy_static::lazy_static;
 use log::{error, info};
-use server_events::gui::app::App;
+use server_events::app::app::App;
 
 
 /***** STATICS *****/

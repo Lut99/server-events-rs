@@ -4,7 +4,7 @@
 //  Created:
 //    11 Apr 2024, 17:56:50
 //  Last edited:
-//    11 Apr 2024, 18:11:36
+//    01 May 2024, 19:44:01
 //  Auto updated?
 //    Yes
 //
@@ -17,7 +17,7 @@ use egui_winit::egui;
 
 
 /***** LIBRARY *****/
-pub struct Gui {}
+pub struct Gui;
 impl Gui {
     /// Builds the UI from the group up.
     ///

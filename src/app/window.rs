@@ -4,7 +4,7 @@
 //  Created:
 //    02 Apr 2024, 15:14:28
 //  Last edited:
-//    11 Apr 2024, 18:15:39
+//    01 May 2024, 19:52:01
 //  Auto updated?
 //    Yes
 //
@@ -23,7 +23,7 @@ use tray_icon::menu::MenuEvent;
 use winit::event_loop::EventLoopWindowTarget;
 use winit::window::{WindowBuilder, WindowId};
 
-use crate::gui::gui::Gui;
+use super::gui::Gui;
 
 
 /***** ERRORS *****/
@@ -113,14 +113,14 @@ impl Window {
     pub fn handle_event(&mut self, event: WindowEvent) -> Option<WindowEvent> {
         let response: EventResponse = self.egui_state.on_window_event(&self.window, &event);
         if response.repaint {
-            self.paint();
+            self.render();
         }
         if !response.consumed { Some(event) } else { None }
     }
 
     /// Renders the given egui application to the screen.
     #[inline]
-    pub fn paint(&mut self) {
+    pub fn render(&mut self) {
         trace!("Painting Window");
         let raw_input = self.egui_state.take_egui_input(&self.window);
         let output = self.egui_state.egui_ctx().run(raw_input, |egui_ctx| self.gui.ui(egui_ctx));
